@@ -1,0 +1,6 @@
+flask 
+flask-socketio
+eventlet
+python-dotenv
+flask_jwt_extended
+pymongo
