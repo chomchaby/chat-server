@@ -164,4 +164,4 @@ def handle_leave_room_event(data):
     socketio.emit('leave_room_announcement', data, room=data['room'])
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, port=5050)
+    socketio.run(app, host='0.0.0.0')

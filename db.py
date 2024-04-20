@@ -18,9 +18,14 @@ except Exception as e:
     print(e)
 
 chat_db = client.get_database('chat-db')
+# users
 users_collection = chat_db.get_collection("users")
+# rooms
 rooms_collection = chat_db.get_collection("rooms")
 room_members_collection = chat_db.get_collection("room_members")
+# messages
+group_messages = chat_db.get_collection("group_messages")
+direct_messages = chat_db.get_collection("direct_messages")
 
 def save_user(username, password):
     password_hash = generate_password_hash(password)
