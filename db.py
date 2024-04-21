@@ -63,7 +63,6 @@ def get_rooms_from_type(room_type):
 # Room Member Operation -------------------------------------------------------------------------------------------------
 def add_a_room_member(room_id, username, added_by):
     try:
-        print(1)
         #only the admin can remove
         if not is_room_admin(room_id, added_by):
             raise ValueError("User '{}' don't have permission to add member".format(added_by))
@@ -90,7 +89,30 @@ def add_a_room_member(room_id, username, added_by):
     except ValueError as e:
         print("valueerror")
         return jsonify({'error': str(e)}), 400
-
+    
+def add_admin(room_id, username, added_by):
+    try:
+        # Check if the user exists in the system
+        if users_collection.count_documents({"_id": username}) == 0:
+            raise ValueError("User '{}' does not exist in the system".format(username))
+        # Check if the room is private room
+        if get_room_type(room_id) != 'PrivateGroup':
+            raise ValueError("Room '{}' is not a PrivateGroup".format(room_id))
+        
+        room_name = get_room_name(room_id)
+        room_members_collection.insert_one({
+            '_id': {'room_id': ObjectId(room_id), 'username': username}, 
+            'room_name': room_name, 
+            'added_by': added_by,
+            'added_at': datetime.now(), 
+            'is_room_admin': True
+        })
+        print("add successful")
+        return jsonify({'message': 'User {} added to room {}'.format(username, room_name)}), 200
+    except ValueError as e:
+        print("valueerror")
+        print(str(e))
+        return jsonify({'error': str(e)}), 400
 
 def add_room_members(room_id, room_name, usernames, added_by):
     for username in usernames:
@@ -129,7 +151,7 @@ def remove_a_room_member(room_id, remove_by, username):
             raise ValueError("User '{}' is not a member of the group".format(username))
         
         # Remove the user from the room
-        room_members_collection.delete_one({'room_id': ObjectId(room_id), 'username': username})
+        room_members_collection.delete_one({'_id.room_id': ObjectId(room_id), '_id.username': username})
         
         return jsonify({'message': "User '{}' removed from room".format(username)}), 200
     
@@ -149,7 +171,7 @@ def remove_room_members(room_id, remove_by, usernames):
             raise ValueError("User '{}' is not a member of the group.".format(username))
     
     room_members_collection.delete_many({
-        '_id': {'$in': [{'room_id': ObjectId(room_id), 'username': username} for username in usernames]}
+        '_id': {'$in': [{'_id.room_id': ObjectId(room_id), '_id.username': username} for username in usernames]}
     })
 def save_room(room_name, room_type, created_by):
     room_id = rooms_collection.insert_one(
@@ -157,7 +179,7 @@ def save_room(room_name, room_type, created_by):
          'type': room_type, #(Direct, PublicGroup, PrivateGroup)
          'created_by': created_by,
          'created_at': datetime.now()}).inserted_id
-    add_a_room_member(room_id, room_name, created_by, created_by, is_room_admin=True)
+    add_admin(room_id, created_by, created_by)
     return room_id
 
 def get_room_members(room_id):

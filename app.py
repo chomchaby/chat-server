@@ -109,7 +109,7 @@ def create_room():
                 if current_username in usernames:
                     usernames.remove(current_username)
                 if len(usernames) > 1 or usernames[0] != '':
-                    if room_type == 'PublicGroup':
+                    if room_type == 'PrivateGroup':
                         add_room_members(room_id, room_name, usernames, current_username)
 
                 # Create a new chat room
@@ -128,6 +128,7 @@ def create_room():
 def view_room(room_id):
     current_username = get_jwt_identity()
     room = get_room(room_id)
+    
     if room and is_room_member(room_id, current_username):
         room_id_str = str(room['_id'])
         formatted_room = {
