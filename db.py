@@ -24,10 +24,7 @@ users_collection = chat_db.get_collection("users")
 # rooms
 rooms_collection = chat_db.get_collection("rooms")
 room_members_collection = chat_db.get_collection("room_members")
-# messages
-group_messages = chat_db.get_collection("group_messages")
-direct_messages = chat_db.get_collection("direct_messages")
-
+# chat_room
 chat_room_collection = chat_db.get_collection("chat_room")
 
 # User Operation--------------------------------------------------------------------------------------------------------
