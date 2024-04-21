@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request, Response
 from flask_socketio import SocketIO, join_room, leave_room
 from flask_jwt_extended import JWTManager, create_access_token, unset_access_cookies, jwt_required, get_jwt_identity
-from db import get_rooms_from_type,add_room_members, get_all_friends, get_room, get_room_members, get_rooms_for_user, get_user, is_room_member, save_room, save_user
+from db import get_rooms_from_type,add_room_members, get_all_friends, get_room, get_room_members, get_rooms_for_user, get_user, is_room_member, save_room, save_user,add_a_room_member, remove_a_room_member
 from chatRoom import ChatRoom
 from dotenv import load_dotenv
 from datetime import timedelta
@@ -206,6 +206,27 @@ def get_room_list(room_type):
     except Exception as e:
         # Handle any exceptions and return an error response
         return jsonify({'error': str(e)}), 500
+
+@app.route('/rooms/<room_id>/add_member/<username>', methods=['POST'])
+@jwt_required()
+def add_member(room_id,username):
+    try:
+        added_by = get_jwt_identity()
+        return add_a_room_member(room_id, username, added_by)
+    except Exception as e:
+        # Handle any exceptions and return an error response
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/rooms/<room_id>/remove_member/<username>', methods=['POST'])
+@jwt_required()
+def remove_member(room_id,username):
+    try:
+        remove_by = get_jwt_identity()
+        return remove_a_room_member(room_id, remove_by, username)
+    except Exception as e:
+        # Handle any exceptions and return an error response
+        return jsonify({'error': str(e)}), 500
+
 
 ##############################################################    
 # socket programming...
