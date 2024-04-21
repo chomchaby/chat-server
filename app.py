@@ -1,7 +1,8 @@
 from flask import Flask, jsonify, request, Response
 from flask_socketio import SocketIO, join_room, leave_room
 from flask_jwt_extended import JWTManager, create_access_token, unset_access_cookies, jwt_required, get_jwt_identity
-from db import add_room_members, get_room, get_room_members, get_rooms_for_user, get_user, is_room_member, save_room, save_user
+from db import get_rooms_from_type,add_room_members, get_all_friends, get_room, get_room_members, get_rooms_for_user, get_user, is_room_member, save_room, save_user
+from chatRoom import ChatRoom
 from dotenv import load_dotenv
 from datetime import timedelta
 import os
@@ -19,6 +20,9 @@ app.config['JWT_COOKIE_SAMESITE'] = 'None'
 
 socketio = SocketIO(app, cors_allowed_origins="*")
 jwt = JWTManager(app)
+
+##init chatroom
+chat_room = ChatRoom()
 
 @app.route('/',methods=['GET'])
 @jwt_required() 
@@ -89,25 +93,36 @@ def signup():
         return res
 
 
-@app.route('/create-room', methods=['GET','POST'])
+@app.route('/create-room', methods=['GET', 'POST'])
 @jwt_required()
 def create_room():
     current_username = get_jwt_identity()
     if request.method == 'GET':
         return jsonify({'username': current_username}), 200
     else:
-        room_name = request.get_json().get('room_name')
-        usernames = [username.strip() for username in request.get_json().get('members').split(',')]
-        if len(room_name) and len(usernames):
-            room_id = save_room(room_name, current_username)
-            if current_username in usernames:
-                usernames.remove(current_username)
-            if len(usernames) > 1 or usernames[0] != '':
-                add_room_members(room_id, room_name, usernames, current_username)
-            return jsonify(room_id=str(room_id))
-        else:
-            return jsonify({'error': 'Invalid credentials'}), 400
-           
+        try:
+            room_name = request.get_json().get('room_name')
+            room_type = request.get_json().get('room_type')
+            usernames = [username.strip() for username in request.get_json().get('members').split(',')]
+            if len(room_name) and len(usernames):
+                room_id = save_room(room_name, room_type, current_username)
+                if current_username in usernames:
+                    usernames.remove(current_username)
+                if len(usernames) > 1 or usernames[0] != '':
+                    if room_type == 'PublicGroup':
+                        add_room_members(room_id, room_name, usernames, current_username)
+
+                # Create a new chat room
+                chat_room.create_new_chat_room(room_id)
+
+                return jsonify(room_id=str(room_id))
+            else:
+                return jsonify({'error': 'Invalid credentials'}), 400
+        except ValueError  as e:
+            # Log the error for debugging
+            print(f"An error occurred while creating the chat room: {e}")
+            return jsonify({'error': str(e)}), 500
+                  
 @app.route('/rooms/<room_id>/')
 @jwt_required()
 def view_room(room_id):
@@ -137,6 +152,60 @@ def view_room(room_id):
     else :
         return jsonify({'error': 'Invalid credentials'}), 400
 
+@app.route('/chatRoom/<room_id>/', methods=['GET'])
+@jwt_required()
+def get_chat_room(room_id):
+    current_username = get_jwt_identity()
+
+    # Check if the user is a member of the requested room
+    if not is_room_member(room_id, current_username):
+        return jsonify({'error': 'You are not a member of this room.'}), 403
+
+    # Retrieve chat room details from the database
+    room = get_room(room_id)
+    if not room:
+        return jsonify({'error': 'Chat room not found.'}), 404
+
+    # Retrieve chat messages for the room
+    chat_messages = chat_room.get_messages(room_id)
+
+    # Format room data and messages for response
+    formatted_room = {
+        '_id': str(room['_id']),
+        'name': room['name'],
+        'type': room['type'],
+        'created_by': room['created_by'],
+        'created_at': room['created_at'].isoformat(),
+        'chat_messages': chat_messages
+    }
+
+    return jsonify(formatted_room), 200
+
+
+@app.route('/friends', methods=['GET'])
+@jwt_required()
+def get_friends():
+    try:
+        # Get the current user's identity from the JWT token
+        current_username = get_jwt_identity()
+        # Retrieve the list of friends for the current user
+        friends = get_all_friends(current_username)
+        
+        # Return the list of friends as a JSON response
+        return jsonify({'friends': friends}), 200
+    except Exception as e:
+        # Handle any exceptions and return an error response
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/rooms_list/<room_type>', methods=['GET'])
+@jwt_required()
+def get_room_list(room_type):
+    try:
+        rooms_list = get_rooms_from_type(room_type)
+        return rooms_list
+    except Exception as e:
+        # Handle any exceptions and return an error response
+        return jsonify({'error': str(e)}), 500
 
 ##############################################################    
 # socket programming...
@@ -144,10 +213,15 @@ def view_room(room_id):
 
 @socketio.on('send_message')
 def handle_send_message_event(data):
-    app.logger.info("{} has sent message to the room {}: {}".format(data['username'],
-                                                                    data['room'],
-                                                                    data['message']))
-    socketio.emit('receive_message', data, room=data['room'])
+    room_id = data['room']
+    sender = data['username']
+    message = data['message']
+    
+    # Add the message to the chat room
+    chat_room.add_message(room_id, sender, message)
+    
+    # Broadcast the message to all clients in the room
+    socketio.emit('receive_message', data, room=room_id)
 
 
 @socketio.on('join_room')
@@ -165,3 +239,4 @@ def handle_leave_room_event(data):
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0')
+    # socketio.run(app,debug=True, port=5050)
