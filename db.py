@@ -4,6 +4,7 @@ from werkzeug.security import generate_password_hash
 from user import User
 from datetime import datetime
 from bson import ObjectId
+from flask import jsonify
 import os
 
 mongo_uri = os.getenv("MONGO_URI")
@@ -48,15 +49,6 @@ def get_all_friends(username):
     return friends
 
 # Room Operation --------------------------------------------------------------------------------------------------------
-def save_room(room_name, room_type, created_by):
-    room_id = rooms_collection.insert_one(
-        {'name': room_name,
-         'type': room_type, #(Direct, PublicGroup, PrivateGroup)
-         'created_by': created_by,
-         'created_at': datetime.now()}).inserted_id
-    add_room_member(room_id, room_name, created_by, created_by, is_room_admin=True)
-    return room_id
-
 def update_room(room_id, room_name):
     rooms_collection.update_one({'_id': ObjectId(room_id)}, {'$set': {'name': room_name}})
     room_members_collection.update_many({'_id.room_id': ObjectId(room_id)}, {'$set': {'room_name': room_name}})
@@ -72,22 +64,36 @@ def get_rooms_from_type(room_type):
     return room_data
 
 # Room Member Operation -------------------------------------------------------------------------------------------------
-def add_room_member(room_id, room_name, username, added_by, is_room_admin=False):
-    # Check if the user exists in the system
-    if users_collection.count_documents({"_id": username}) == 0:
-        raise ValueError("User '{}' does not exist in the system.".format(username))
-    
-    # Check if the user is already a member of the group
-    if is_room_member(room_id, username):
-        raise ValueError("User '{}' is already a member of the group.".format(username))
-    
-    room_members_collection.insert_one({
-        '_id': {'room_id': ObjectId(room_id), 'username': username}, 
-        'room_name': room_name, 
-        'added_by': added_by,
-        'added_at': datetime.now(), 
-        'is_room_admin': is_room_admin
-    })
+def add_a_room_member(room_id, username, added_by):
+    try:
+        print(1)
+        #only the admin can remove
+        if not is_room_admin(room_id, added_by):
+            raise ValueError("User '{}' don't have permission to add member".format(added_by))
+        # Check if the user is already a member of the group
+        if is_room_member(room_id, username):
+            raise ValueError("User '{}' is already a member of the group".format(username))
+        # Check if the user exists in the system
+        if users_collection.count_documents({"_id": username}) == 0:
+            raise ValueError("User '{}' does not exist in the system".format(username))
+        # Check if the room is private room
+        if get_room_type(room_id) != 'PrivateGroup':
+            raise ValueError("Room '{}' is not a PrivateGroup".format(room_id))
+        
+        room_name = get_room_name(room_id)
+        print(room_name)
+        room_members_collection.insert_one({
+            '_id': {'room_id': ObjectId(room_id), 'username': username}, 
+            'room_name': room_name, 
+            'added_by': added_by,
+            'added_at': datetime.now(), 
+            'is_room_admin': False
+        })
+        return jsonify({'message': 'User {} added to room {}'.format(username, room_name)}), 200
+    except ValueError as e:
+        print("valueerror")
+        return jsonify({'error': str(e)}), 400
+
 
 def add_room_members(room_id, room_name, usernames, added_by):
     for username in usernames:
@@ -111,7 +117,35 @@ def add_room_members(room_id, room_name, usernames, added_by):
     ]
     room_members_collection.insert_many(bulk_operations)
 
-def remove_room_members(room_id, usernames):
+def remove_a_room_member(room_id, remove_by, username):
+    try:
+        # Only the admin can remove
+        if not is_room_admin(room_id, remove_by):
+            raise ValueError("User '{}' doesn't have permission to remove member".format(remove_by))
+        
+        # Check if the room is a private room
+        if get_room_type(room_id) != 'PrivateGroup':
+            raise ValueError("Room '{}' is not a PrivateGroup".format(room_id))
+        
+        # Check if the user is a member of the group
+        if not is_room_member(room_id, username):
+            raise ValueError("User '{}' is not a member of the group".format(username))
+        
+        # Remove the user from the room
+        room_members_collection.delete_one({'room_id': ObjectId(room_id), 'username': username})
+        
+        return jsonify({'message': "User '{}' removed from room".format(username)}), 200
+    
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    
+def remove_room_members(room_id, remove_by, usernames):
+    #only the admin can remove
+    if not is_room_admin(room_id, remove_by):
+        raise ValueError("User '{} don't have permission to remove member'".format(username) )
+    # Check if the room is private room
+    if get_room_type(room_id) != 'PrivateGroup':
+        raise ValueError("Room '{}' is not a PrivateGroup.".format(room_id))
     for username in usernames:
         # Check if the user is a member of the group
         if not is_room_member(room_id, username):
@@ -120,6 +154,14 @@ def remove_room_members(room_id, usernames):
     room_members_collection.delete_many({
         '_id': {'$in': [{'room_id': ObjectId(room_id), 'username': username} for username in usernames]}
     })
+def save_room(room_name, room_type, created_by):
+    room_id = rooms_collection.insert_one(
+        {'name': room_name,
+         'type': room_type, #(Direct, PublicGroup, PrivateGroup)
+         'created_by': created_by,
+         'created_at': datetime.now()}).inserted_id
+    add_a_room_member(room_id, room_name, created_by, created_by, is_room_admin=True)
+    return room_id
 
 def get_room_members(room_id):
     return list(room_members_collection.find({'_id.room_id': ObjectId(room_id)}))
@@ -135,4 +177,18 @@ def is_room_admin(room_id, username):
     return room_members_collection.count_documents(
         {'_id': {'room_id': ObjectId(room_id), 'username': username}, 'is_room_admin': True})
 
-# 
+def get_room_type(room_id):
+    room = rooms_collection.find_one({'_id': ObjectId(room_id)})
+    if room:
+        room_type = room.get('type')
+        return room_type
+    else:
+        return None 
+    
+def get_room_name(room_id):
+    room = rooms_collection.find_one({'_id': ObjectId(room_id)})
+    if room:
+        room_name = room.get('name')
+        return room_name
+    else:
+        return None 
