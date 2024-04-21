@@ -38,6 +38,15 @@ def get_user(username):
     user_data = users_collection.find_one({'_id':username})
     return User(user_data['_id'], user_data['password']) if user_data else None
 
+def get_all_friends(username):
+    # Retrieve all users from the database
+    all_users = users_collection.find({}, {'_id': 1})
+    # Extract usernames from user documents
+    all_usernames = [user['_id'] for user in all_users]
+    # Exclude the user's own username from the list of friends
+    friends = [friend for friend in all_usernames if friend != username]
+    return friends
+
 # Room Operation --------------------------------------------------------------------------------------------------------
 def save_room(room_name, room_type, created_by):
     room_id = rooms_collection.insert_one(
@@ -54,6 +63,13 @@ def update_room(room_id, room_name):
 
 def get_room(room_id):
     return rooms_collection.find_one({'_id': ObjectId(room_id)})
+
+def get_rooms_from_type(room_type):
+    # Find all rooms with the specified room_type
+    rooms = rooms_collection.find({'type': room_type})
+    # Extract _id and room_name from room documents
+    room_data = [{'_id': str(room['_id']), 'name': room['name']} for room in rooms]
+    return room_data
 
 # Room Member Operation -------------------------------------------------------------------------------------------------
 def add_room_member(room_id, room_name, username, added_by, is_room_admin=False):

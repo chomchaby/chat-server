@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request, Response
 from flask_socketio import SocketIO, join_room, leave_room
 from flask_jwt_extended import JWTManager, create_access_token, unset_access_cookies, jwt_required, get_jwt_identity
-from db import add_room_members, get_room, get_room_members, get_rooms_for_user, get_user, is_room_member, save_room, save_user
+from db import get_rooms_from_type,add_room_members, get_all_friends, get_room, get_room_members, get_rooms_for_user, get_user, is_room_member, save_room, save_user
 from chatRoom import ChatRoom
 from dotenv import load_dotenv
 from datetime import timedelta
@@ -180,6 +180,32 @@ def get_chat_room(room_id):
     }
 
     return jsonify(formatted_room), 200
+
+
+@app.route('/friends', methods=['GET'])
+@jwt_required()
+def get_friends():
+    try:
+        # Get the current user's identity from the JWT token
+        current_username = get_jwt_identity()
+        # Retrieve the list of friends for the current user
+        friends = get_all_friends(current_username)
+        
+        # Return the list of friends as a JSON response
+        return jsonify({'friends': friends}), 200
+    except Exception as e:
+        # Handle any exceptions and return an error response
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/rooms_list/<room_type>', methods=['GET'])
+@jwt_required()
+def get_room_list(room_type):
+    try:
+        rooms_list = get_rooms_from_type(room_type)
+        return rooms_list
+    except Exception as e:
+        # Handle any exceptions and return an error response
+        return jsonify({'error': str(e)}), 500
 
 ##############################################################    
 # socket programming...

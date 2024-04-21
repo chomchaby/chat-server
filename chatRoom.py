@@ -17,7 +17,7 @@ class ChatRoom:
         Create a new chat room with an empty chat list.
         """
         room_data = {
-            "room_id": room_id,
+            "_id": room_id,
             "chat_list": []
         }
         self.chat_room_collection.insert_one(room_data)
