@@ -71,7 +71,7 @@ def login():
 @jwt_required() 
 def logout():
     print('Received POST request for /logout')
-    res = Response(status=204)
+    res = Response(status=200)
     unset_access_cookies(res)
     return res
 
