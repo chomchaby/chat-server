@@ -190,7 +190,18 @@ def get_rooms_for_user(username):
 
 
 def is_room_member(room_id, username):
-    return room_members_collection.count_documents({'_id': {'room_id': ObjectId(room_id), 'username': username}})
+    room = rooms_collection.find_one({'_id': ObjectId(room_id)})
+    if room:
+        if room['type'] == 'Direct':
+            return room['direct_to'] == username or room['created_by'] == username
+        elif room['type'] == 'PrivateGroup':
+            return room_members_collection.count_documents({'_id': {'room_id': ObjectId(room_id), 'username': username}})
+        else:
+            return True
+    else:
+        raise ValueError("Room id '{}' is not found in the system".format(room_id))
+        
+
 
 def is_room_admin(room_id, username):
     return room_members_collection.count_documents(

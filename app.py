@@ -7,6 +7,7 @@ from chatRoom import ChatRoom
 from dotenv import load_dotenv
 from datetime import timedelta
 import os
+from flask_cors import CORS
 
 # Load environment variables from .env file
 load_dotenv()
@@ -128,32 +129,44 @@ def create_room():
 @app.route('/rooms/<room_id>/')
 @jwt_required()
 def view_room(room_id):
-    current_username = get_jwt_identity()
-    room = get_room(room_id)
-    
-    if room and is_room_member(room_id, current_username):
-        room_id_str = str(room['_id'])
-        formatted_room = {
-            '_id' : room_id_str,
-            'name': room['name'],
-            'created_by': room['created_by'],
-            'created_at' : room['created_at'].isoformat()
-        }
-        room_members = get_room_members(room_id)
-        formatted_room_members = []
-        for room_member in room_members:
-            room_id_str = str(room_member['_id']['room_id'])  
-            formatted_room_member = {
-                'room_id': room_id_str,
-                'username': room_member['_id']['username'],
-                'added_by': room_member['added_by'],
-                'added_at': room_member['added_at'].isoformat(),
-                'is_room_admin': room_member['is_room_admin']
+    try:
+        current_username = get_jwt_identity()
+        room = get_room(room_id)
+
+        if room:
+            if room['type'] == 'PrivateGroup':
+                if not is_room_member(room_id, current_username):
+                    return jsonify({'error': 'You are not a member of this room.'}), 403
+            room_id_str = str(room['_id'])
+            formatted_room = {
+                '_id': room_id_str,
+                'name': room['name'],
+                'type': room['type'],
+                'created_by': room['created_by'],
+                'created_at': room['created_at'].isoformat()
             }
-            formatted_room_members.append(formatted_room_member)
-        return jsonify(username=current_username, room=formatted_room, room_members=formatted_room_members)
-    else :
-        return jsonify({'error': 'Invalid credentials'}), 400
+            # Check if the room type is "Direct" and include the direct_to field
+            if room['type'] == 'Direct':
+                formatted_room['direct_to'] = room['direct_to']
+            
+            room_members = get_room_members(room_id)
+            formatted_room_members = []
+            for room_member in room_members:
+                room_id_str = str(room_member['_id']['room_id'])
+                formatted_room_member = {
+                    'room_id': room_id_str,
+                    'username': room_member['_id']['username'],
+                    'added_by': room_member['added_by'],
+                    'added_at': room_member['added_at'].isoformat(),
+                    'is_room_admin': room_member['is_room_admin']
+                }
+                formatted_room_members.append(formatted_room_member)
+            return jsonify(username=current_username, room=formatted_room, room_members=formatted_room_members), 200
+        else:
+            return jsonify({'error': 'Room not found.'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
 
 @app.route('/chatRoom/<room_id>/', methods=['GET'])
 @jwt_required()
@@ -181,6 +194,9 @@ def get_chat_room(room_id):
         'created_at': room['created_at'].isoformat(),
         'chat_messages': chat_messages
     }
+    # Check if the room type is "Direct" and include the direct_to field
+    if room['type'] == 'Direct':
+        formatted_room['direct_to'] = room['direct_to']
 
     return jsonify(formatted_room), 200
 
@@ -279,5 +295,5 @@ def handle_leave_room_event(data):
     socketio.emit('leave_room_announcement', data, room=data['room'])
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0')
-    # socketio.run(app,debug=True, port=5050)
+    # socketio.run(app, host='0.0.0.0')
+    socketio.run(app,debug=True, port=5050)
