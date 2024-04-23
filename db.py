@@ -114,7 +114,7 @@ def add_admin(room_id, username, added_by):
         print(str(e))
         return jsonify({'error': str(e)}), 400
 
-def add_room_members(room_id, room_name, usernames, added_by):
+def add_room_members(room_id, room_name, usernames, added_by, is_admin = False):
     for username in usernames:
         # Check if the user exists in the system
         if users_collection.count_documents({"_id": username}) == 0:
@@ -130,7 +130,7 @@ def add_room_members(room_id, room_name, usernames, added_by):
             'room_name': room_name,
             'added_by': added_by,
             'added_at': datetime.now(),
-            'is_room_admin': False
+            'is_room_admin': is_admin
         }
         for username in usernames
     ]
@@ -211,3 +211,37 @@ def get_room_name(room_id):
         return room_name
     else:
         return None 
+    
+def direct_room(username, friendname):
+    # Check if there is a direct room between the two users
+    if users_collection.count_documents({"_id": username}) == 0:
+            raise ValueError(f"User '{username}' does not exist in the system.")
+    if users_collection.count_documents({"_id": friendname}) == 0:
+            raise ValueError(f"User '{friendname}' does not exist in the system.")
+    
+    query = {
+        "type": "Direct",
+        "$or": [
+            {"created_by": username},
+            {"created_by": friendname}
+        ]
+    }
+    direct_room = rooms_collection.find_one(query)
+    
+    if direct_room:
+        return str(direct_room['_id'])
+    
+    # If no direct room found, create one
+    room_data = {
+        'name': "Direct",
+        'type': "Direct",
+        'created_by': username,
+        'created_at': datetime.now()
+    }
+    
+    result = rooms_collection.insert_one(room_data)
+    room_id = str(result.inserted_id)
+    add_room_members(room_id, "Direct", [username,friendname], username, True)
+    print(f"new room between '{username}' and '{friendname}' was created")
+    # Return the created room
+    return room_id

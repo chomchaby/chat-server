@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request, Response
 from flask_socketio import SocketIO, join_room, leave_room
 from flask_jwt_extended import JWTManager, create_access_token, unset_access_cookies, jwt_required, get_jwt_identity
-from db import get_rooms_from_type,add_room_members, get_all_friends, get_room, get_room_members, get_rooms_for_user, get_user, is_room_member, save_room, save_user,add_a_room_member, remove_a_room_member
+from db import get_rooms_from_type,add_room_members, get_all_friends, get_room, get_room_members, get_rooms_for_user, get_user, is_room_member, save_room, save_user,add_a_room_member, remove_a_room_member, direct_room
 from chatRoom import ChatRoom
 from dotenv import load_dotenv
 from datetime import timedelta
@@ -228,6 +228,23 @@ def remove_member(room_id,username):
         # Handle any exceptions and return an error response
         return jsonify({'error': str(e)}), 500
 
+@app.route('/rooms/direct/<friendname>', methods=['GET'])
+@jwt_required()
+def find_direct_room(friendname):
+    try:
+        # Get the current user's identity from the JWT token
+        username = get_jwt_identity()
+        # Retrieve the list of friends for the current user
+        room_id = direct_room(username, friendname)
+        
+        # Return the list of friends as a JSON response
+        return jsonify({'_id': room_id}), 200
+    except ValueError as e:
+        # Handle the case where the users do not exist in the system
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+    # Handle any other exceptions and return an error response
+        return jsonify({'error': str(e)}), 500
 
 ##############################################################    
 # socket programming...
