@@ -2,8 +2,8 @@ from flask import Flask, jsonify, request, Response
 from flask_socketio import SocketIO, join_room, leave_room
 from flask_jwt_extended import JWTManager, create_access_token, unset_access_cookies, jwt_required, get_jwt_identity
 from flask_cors import CORS
-from db import get_rooms_from_type,add_room_members, get_all_friends, get_room, get_room_members, get_rooms_for_user, get_user, is_room_member, save_room, save_user,add_a_room_member, remove_a_room_member, direct_room
-from chatRoom import ChatRoom
+from db import get_rooms_from_type,add_room_members, get_all_friends, get_room, get_room_members, get_rooms_for_user, get_user, is_room_member, save_room, save_user,add_a_room_member, remove_a_room_member, direct_room,create_new_chat_room, add_message, get_messages
+# from chatRoom import ChatRoom
 from dotenv import load_dotenv
 from datetime import timedelta
 import os
@@ -23,7 +23,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 jwt = JWTManager(app)
 
 ##init chatroom
-chat_room = ChatRoom()
+# chat_room = ChatRoom()
 
 @app.route('/',methods=['GET'])
 @jwt_required() 
@@ -114,7 +114,9 @@ def create_room():
                         add_room_members(room_id, room_name, usernames, current_username)
 
                 # Create a new chat room
-                chat_room.create_new_chat_room(room_id)
+                # chat_room.create_new_chat_room(room_id)
+                create_new_chat_room(room_id)
+
 
                 return jsonify(room_id=str(room_id))
             else:
@@ -181,7 +183,9 @@ def get_chat_room(room_id):
         return jsonify({'error': 'Chat room not found.'}), 404
 
     # Retrieve chat messages for the room
-    chat_messages = chat_room.get_messages(room_id)
+    # chat_messages = chat_room.get_messages(room_id)
+    chat_messages = get_messages(room_id)
+
 
     # Format room data and messages for response
     formatted_room = {
@@ -273,7 +277,8 @@ def handle_send_message_event(data):
     message = data['message']
     
     # Add the message to the chat room
-    chat_room.add_message(room_id, sender, message)
+    # chat_room.add_message(room_id, sender, message)
+    add_message(room_id, sender, message)
     
     # Broadcast the message to all clients in the room
     socketio.emit('receive_message', data, room=room_id)

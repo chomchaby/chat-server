@@ -255,3 +255,36 @@ def direct_room(username, friendname):
     # print(f"new room between '{username}' and '{friendname}' was created")
     # Return the created room
     return room_id
+
+
+
+#===================================================================================
+def create_new_chat_room(room_id):
+    """
+    Create a new chat room with an empty chat list.
+    """
+    room_data = {
+        "_id": room_id,
+        "chat_list": []
+    }
+    chat_room_collection.insert_one(room_data)
+
+def add_message(room_id, sender, message):
+    """
+    Add a message to the chat room.
+    """
+    chat_room_collection.update_one(
+        {"_id": room_id},
+        {"$push": {"chat_list": {"sender": sender, "message": message, "created_at": datetime.now()}}},
+        upsert=True
+    )
+
+def get_messages(room_id):
+    """
+    Retrieve all messages for the chat room.
+    """
+    chat_room = chat_room_collection.find_one({"_id": room_id})
+    return chat_room.get("chat_list", []) if chat_room else []
+
+
+
