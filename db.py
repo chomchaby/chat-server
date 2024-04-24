@@ -53,11 +53,21 @@ def update_room(room_id, room_name):
 def get_room(room_id):
     return rooms_collection.find_one({'_id': ObjectId(room_id)})
 
-def get_rooms_from_type(room_type):
+def get_rooms_from_type(room_type,username):
     # Find all rooms with the specified room_type
     rooms = rooms_collection.find({'type': room_type})
+
     # Extract _id and room_name from room documents
-    room_data = [{'_id': str(room['_id']), 'name': room['name']} for room in rooms]
+    room_data = []
+    if room_type == "PrivateGroup":
+        for room in rooms:
+            room_id = str(room['_id'])
+            if is_room_member(room_id, username):
+                room_data.append({'_id': room_id, 'name': room['name']})
+    else:
+        room_data = [{'_id': str(room['_id']), 'name': room['name']} for room in rooms]
+
+
     return room_data
 
 # Room Member Operation -------------------------------------------------------------------------------------------------
